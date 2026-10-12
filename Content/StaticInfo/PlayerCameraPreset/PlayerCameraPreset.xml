@@ -1,0 +1,3 @@
+<PlayerCameraPreset>
+    <DefaultCameraPreset Type="TPS" RightOffsetRange="1.0 2.0" UpOffsetRange="2.0 4.0" ZoomDistanceRange="5.0 10.0" PivotActorHeightRatio="0.8" TargetActorHeightRatio="0.8"/>
+</PlayerCameraPreset>
