@@ -13,6 +13,8 @@ public:
 	FORCEINLINE void Add( Type&& NewDataElement ) { Push( NewDataElement ); }
 
 	FORCEINLINE int32 Num() const;
+	FORCEINLINE bool IsEmpty() const;
+	FORCEINLINE void Empty();
 
 	FORCEINLINE Type& operator[]( const int32 Index ) UE_LIFETIMEBOUND;
 	FORCEINLINE const Type& operator[]( const int32 Index ) const UE_LIFETIMEBOUND;
@@ -34,6 +36,18 @@ template<typename Type>
 int32 TSortedArray<Type>::Num() const
 {
 	return Data.Num();
+}
+
+template<typename Type>
+bool TSortedArray<Type>::IsEmpty() const
+{
+	return Data.IsEmpty();
+}
+
+template<typename Type>
+void TSortedArray<Type>::Empty()
+{
+	Data.Empty();
 }
 
 template<typename Type>

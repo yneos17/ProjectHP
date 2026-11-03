@@ -2,6 +2,7 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Pawn.h"
+#include "EngineUtils.h"
 
 void UClientActorManager::Initialize( FSubsystemCollectionBase& Collection )
 {
@@ -44,6 +45,19 @@ void UClientActorManager::Deinitialize()
 	}
 
 	Super::Deinitialize();
+}
+
+void UClientActorManager::OnWorldBeginPlay( UWorld& InWorld )
+{
+	Super::OnWorldBeginPlay( InWorld );
+
+	for( TActorIterator<AActor> It( &InWorld ); It; ++It )
+	{
+		AActor* FoundActor = *It;
+
+		FObjectKey Key( FoundActor );
+		CharacterActorMap.Add( Key, FoundActor );
+	}
 }
 
 AActor* UClientActorManager::CreateActor( const FSpawnInfo& SpawnInfo )

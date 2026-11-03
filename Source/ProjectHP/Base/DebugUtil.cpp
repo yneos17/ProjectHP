@@ -9,7 +9,7 @@ void DrawDebugStringCenter( const UWorld* InWorld, FVector const& TextLocation, 
 	if( InWorld == nullptr )
 		return;
 
-	APlayerController* PlayerController = UGameplayStatics::GetPlayerController( nullptr, 0 );
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController( InWorld, 0 );
 	if( PlayerController == nullptr || PlayerController->PlayerCameraManager == nullptr )
 		return;
 

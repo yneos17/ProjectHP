@@ -23,18 +23,21 @@ FPlayerCameraResult APlayerCameraTPSMode::GetPlayerCameraModeResult() const
 
 void APlayerCameraTPSMode::UpdateCameraMode_Internal( const FPlayerCameraUpdateDesc& PlayerCameraUpdateDesc )
 {
-	const UPlayerCameraTPSPreset* CastedPreset = static_cast<const UPlayerCameraTPSPreset*>( PlayerCameraPresetInfo.PlayerCameraPreset );
+	const UPlayerCameraTPSPreset* CastedPreset = Cast<UPlayerCameraTPSPreset>( PlayerCameraPresetInfo.PlayerCameraPreset );
 	MJ_ASSERT_DEV( "김민진", CastedPreset != nullptr, "CastedPreset이 nullptr입니다. 코드 수정이 필요합니다." );
 
 	AActor* PivotActor = GetWorld()->GetSubsystem<UClientActorManager>()->GetActor( PlayerCameraPresetInfo.PivotActorKey );
 	if( PivotActor == nullptr )
 	{
-		bIsValid = false;
+		bIsValidCamera = false;
 		return;
 	}
 
-	CameraYaw += PlayerCameraUpdateDesc.DeltaYaw;
-	CameraPitch += PlayerCameraUpdateDesc.DeltaPitch;
+	if( bIsBlendOut == false )
+	{
+		CameraYaw += PlayerCameraUpdateDesc.DeltaYaw;
+		CameraPitch += PlayerCameraUpdateDesc.DeltaPitch;
+	}
 
 	CameraFovDeg = CastedPreset->CameraFovDeg;
 
@@ -42,9 +45,11 @@ void APlayerCameraTPSMode::UpdateCameraMode_Internal( const FPlayerCameraUpdateD
 	ZoomDistance = FMath::GetMappedRangeValueClamped( FVector2D( 0.0f, 1.0f ), CastedPreset->ZoomDistanceRange, PlayerCameraUpdateDesc.ZoomRatio );
 
 	PivotLocation = GetActorCameraLocation( PivotActor, CastedPreset->PivotActorHeightRatio );
-	LootAtLocation = PivotLocation + RightUpOffsetInWorld;
+	LookAtLocation = PivotLocation + RightUpOffsetInWorld;
 
-	CameraLocation = LootAtLocation;
+	CameraLocation = LookAtLocation;
+
+	CameraPitch = FMath::Clamp( CameraPitch, CastedPreset->PitchMinMax.X, CastedPreset->PitchMinMax.Y );
 }
 
 void APlayerCameraTPSMode::UpdateCameraMode_CalcRightUpOffsetInWorld( const FPlayerCameraUpdateDesc& PlayerCameraUpdateDesc )

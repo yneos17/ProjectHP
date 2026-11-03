@@ -4,6 +4,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputActionValue.h"
 #include "PlayerCharacterController.h"
+#include "Camera/PlayerCameraModeManager.h"
 
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
@@ -41,9 +42,8 @@ void APlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 			if( IA_Zoom )
 				EnhancedInputComponent->BindAction( IA_Zoom, ETriggerEvent::Triggered, PC, &APlayerCharacterController::OnMouseWheel );
 
-			//MJTODO
 			if( IA_LockOn )
-				EnhancedInputComponent->BindAction( IA_Zoom, ETriggerEvent::Triggered, PC, &APlayerCharacterController::OnMouseWheel );
+				EnhancedInputComponent->BindAction( IA_LockOn, ETriggerEvent::Started, this, &APlayerCharacter::ToggleLockOn );
 		}
 	}
 }
@@ -53,29 +53,26 @@ void APlayerCharacter::BeginPlay()
 	Super::BeginPlay();
 }
 
-void APlayerCharacter::ToggleLockOn( AActor* EnemyActor )
+void APlayerCharacter::ToggleLockOn()
 {
-	// MJTODO
+	APlayerCharacterController* PlayerCharacterController = Cast<APlayerCharacterController>( GetController() );
+	if( PlayerCharacterController == nullptr )
+		return;
 
-	//UGameplayCameraComponent* CameraComp = GetGameplayCameraComponent();
-	//if( !CameraComp ) return;
-	//
-	//if( EnemyActor )
-	//{
-	//    // 1. VariableTable에 Pivot과 Target Actor 전달
-	//    FCameraVariableTable& VarTable = CameraComp->GetVariableTable();
-	//    VarTable.SetObjectVariable( FCameraVariableName( "PivotActor" ), this );
-	//    VarTable.SetObjectVariable( FCameraVariableName( "TargetActor" ), EnemyActor );
-	//
-	//    // 2. Lock-On Camera Asset 활성화 (CA_LockOnTest 에셋 할당 필요)
-	//    if( LockOnCameraAsset )
-	//    {
-	//        CameraComp->ActivateCameraAsset( LockOnCameraAsset );
-	//    }
-	//}
-	//else
-	//{
-	//    // 락온 해제 시 기본 카메라로 복귀
-	//    CameraComp->DeactivateCameraAsset( LockOnCameraAsset );
-	//}
+	APlayerCameraModeManager* PlayerCameraModeManager = Cast<APlayerCameraModeManager>( PlayerCharacterController->PlayerCameraManager );
+	if( PlayerCharacterController == nullptr )
+		return;
+
+	bTargetLockOn = !bTargetLockOn;
+
+	if( bTargetLockOn )
+	{
+		TSortedArray<FObjectKey> TargetActorKeyList;
+		TargetActorKeyList.Push( TargetComponent->GetTargetActorKey() );
+		PlayerCameraModeManager->SetPlayerCameraPreset( EPlayerCameraPriority::System, LockOnCameraPreset, FObjectKey( this ), TargetActorKeyList );
+	}
+	else
+	{
+		PlayerCameraModeManager->ClearPlayerCameraPreset( EPlayerCameraPriority::System );
+	}
 }

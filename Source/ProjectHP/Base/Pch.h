@@ -8,7 +8,7 @@
 #include "GlobalVariable.h"
 #include "StringUtil.h"
 #include "XmlUtil.h"
-#include "MathUtil.h"
+#include "FMathSub.h"
 #include "DebugUtil.h"
 
 #include "XmlNode.h"

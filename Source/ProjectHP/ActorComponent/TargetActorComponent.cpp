@@ -94,7 +94,7 @@ void UTargetActorComponent::UpdateTargetForControlActor_Default()
 	const FVector OwnerForwardDirection = GetOwner()->GetActorForwardVector();
 	if( UKismetSystemLibrary::SphereOverlapActors( this, OwnerLocation, UGlobalVariable::Get()->Targeting_DistanceCheckScoreDistanceRange.Y, ObjectTypes, nullptr, IgnoreActorList, NearActorList ) == false )
 	{
-		TargetActor.Reset();
+		TargetActorKey = FObjectKey();
 		return;
 	}
 
@@ -137,11 +137,11 @@ void UTargetActorComponent::UpdateTargetForControlActor_Default()
 #endif
 	}
 
-	TargetActor = BestTargetActor;
+	TargetActorKey = FObjectKey( BestTargetActor );
 
 #ifdef MJ_EDITOR
-	const AGameCharacter* GameCharacter = Cast<AGameCharacter>( TargetActor );
-	FVector ConeLocation = GameCharacter ? GameCharacter->GetActorTopLocation() : TargetActor->GetActorLocation();
+	const AGameCharacter* GameCharacter = Cast<AGameCharacter>( BestTargetActor );
+	FVector ConeLocation = GameCharacter ? GameCharacter->GetActorTopLocation() : BestTargetActor->GetActorLocation();
 	ConeLocation += FVector::UpVector * 50.0f;
 
 	const float ConeAngleRad = FMath::DegreesToRadians( 30.0f );
@@ -151,5 +151,6 @@ void UTargetActorComponent::UpdateTargetForControlActor_Default()
 
 bool UTargetActorComponent::CheckTargetable( AActor* CandidateTargetActor )
 {
+	//MJTODO 스크린에 보이는지 여부
 	return true;
 }

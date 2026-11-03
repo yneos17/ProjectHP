@@ -22,6 +22,8 @@ public:
 
 	void SetTargetSearchType( const ETargetSearchType TargetSearchType );
 
+	FObjectKey GetTargetActorKey() const { return TargetActorKey; }
+
 private:
 	virtual void		TickComponent( float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction ) override;
 	virtual void		BeginPlay() override;
@@ -35,6 +37,6 @@ private:
 	bool				CheckTargetable( AActor* CandidateTargetActor );
 
 private:
-	ETargetSearchType			TargetSearchType;
-	TWeakObjectPtr<AActor>		TargetActor;
+	ETargetSearchType		TargetSearchType;
+	FObjectKey				TargetActorKey;
 };

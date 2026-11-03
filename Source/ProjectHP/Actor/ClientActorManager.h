@@ -26,6 +26,8 @@ public:
 	virtual void Initialize( FSubsystemCollectionBase& Collection ) override;
 	virtual void Deinitialize() override;
 
+	virtual void OnWorldBeginPlay( UWorld& InWorld ) override;
+
 	AActor* CreateActor( const FSpawnInfo& SpawnInfo );
 	AActor* GetActor( const FObjectKey& ObjectKey );
 	AActor* GetSelfActor();

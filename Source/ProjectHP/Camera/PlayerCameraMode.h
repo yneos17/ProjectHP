@@ -57,6 +57,23 @@ public:
 	float RotationAccSpeed = 450.0f;
 };
 
+enum class EPlayerCameraRotateType : uint8
+{
+	None = 0,
+	RotateYawBySpeed,
+	RotateYawPitchBySpeed,
+	Count,
+};
+
+struct FPlayerCameraRotateInfo
+{
+	EPlayerCameraRotateType PlayerCameraRotateType = EPlayerCameraRotateType::None;
+	float GoalCameraYaw = 0.0f;
+	float GoalCameraPitch = 0.0f;
+	float CurrentRotateSpeed = 0.0f;
+	int8 YawRotateDirection = 0;
+};
+
 UCLASS()
 class PROJECTHP_API APlayerCameraMode : public AActor
 {
@@ -68,34 +85,50 @@ public:
 	virtual EPlayerCameraModeType GetPlayerCameraModeType() const PURE_VIRTUAL( APlayerCameraMode::GetPlayerCameraModeType, return EPlayerCameraModeType::Count; );
 	virtual FPlayerCameraResult GetPlayerCameraModeResult() const PURE_VIRTUAL( APlayerCameraMode::GetPlayerCameraModeResult, return FPlayerCameraResult(); );
 
-	void		Initialize( const FPlayerCameraPresetInfo& InPlayerCameraPresetInfo, const FPlayerCameraResult& PrevPlayerCameraResult );
+	virtual void Initialize( const FPlayerCameraPresetInfo& InPlayerCameraPresetInfo, const FPlayerCameraResult& PrevPlayerCameraResult );
 	void		UpdateCameraMode( const FPlayerCameraUpdateDesc& PlayerCameraUpdateDesc );
 
-	bool		IsSameCamera( const FPlayerCameraPresetInfo& Other ) const;
-	// bool		IsAutoRotate();
-	bool		IsValid() const { return bIsValid; }
+	virtual bool IsSameCamera( const FPlayerCameraPresetInfo& Other ) const;
+	bool		IsValidCamera() const { return bIsValidCamera; }
+	void		SetBlendOut() { bIsBlendOut = true; }
 
 	const FPlayerCameraPresetInfo& GetPlayerCameraPresetInfo() const { return PlayerCameraPresetInfo; }
 	FVector		GetActorCameraLocation( const AActor* Actor, const float HeightRatio ) const;
 	FVector		GetActorHeightOffset( const AActor* Actor, const float HeightRatio ) const;
+
+	TSortedArray<FObjectKey> GetDefaultTargetActorKeyList() const;
+
+	void		SetGoalYaw( const float GoalYaw );
+	void		SetGoalYawPitch( const float GoalYaw, const float GoalPitch );
+	float		GetGoalYaw() const;
+	float		GetGoalPitch() const;
+
+#ifdef MJ_EDITOR
+	virtual void DebugDraw_PlayerCameraMode() {};
+#endif
 
 protected:
 	virtual void UpdateCameraMode_Internal( const FPlayerCameraUpdateDesc& PlayerCameraUpdateDesc ) PURE_VIRTUAL( APlayerCameraMode::UpdateCameraMode_Internal, );
 
 private:
 	void		UpdateCameraMode_Common( const FPlayerCameraUpdateDesc& PlayerCameraUpdateDesc );
+	void		UpdateCameraMode_RotateCamera( const FPlayerCameraUpdateDesc& PlayerCameraUpdateDesc );
 
 protected:
 	FPlayerCameraPresetInfo		PlayerCameraPresetInfo;
 	float						CameraYaw = 0.0f;
-	float						CameraPitch = 0.0f;
+	float						CameraPitch = 0.0f; // MJTODO: Pitch MinMax계산 파편화를 막기 위해 Setter Getter만들기
 	float						ZoomDistance = 0.0f;
 	float						CameraFovDeg = 0.0f;
 
 	FVector						RightUpOffsetInWorld = FVector::ZeroVector;
 	FVector						PivotLocation = FVector::ZeroVector;
-	FVector						LootAtLocation = FVector::ZeroVector;
+	FVector						LookAtLocation = FVector::ZeroVector;
 	FVector						CameraLocation = FVector::ZeroVector;
 
-	bool						bIsValid = true;
+	bool						bIsValidCamera = true;
+	bool						bIsBlendOut = false;
+
+private:
+	FPlayerCameraRotateInfo		PlayerCameraRotateInfo;
 };

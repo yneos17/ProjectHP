@@ -1,11 +1,11 @@
 ﻿#include "PlayerCameraModeManager.h"
-#include "PlayerCameraPresetManager.h"
 #include "PlayerCameraMode.h"
 #include "PlayerCameraTPSMode.h"
 #include "PlayerCameraLockOnMode.h"
 
 #include "Engine/World.h"
 #include "Engine/GameInstance.h"
+#include "Engine/GameViewportClient.h"
 
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
@@ -53,10 +53,12 @@ FPlayerCameraResult	FPlayerCameraResult::Lerp( const FPlayerCameraResult& A, con
 
 	Result.PivotLocation = FMath::Lerp( A.PivotLocation, B.PivotLocation, Alpha );
 	Result.CameraLocation = FMath::Lerp( A.CameraLocation, B.CameraLocation, Alpha );
-	Result.CameraYaw = MathUtil::LerpDegree( A.CameraYaw, B.CameraYaw, Alpha );
-	Result.CameraPitch = MathUtil::LerpDegree( A.CameraPitch, B.CameraPitch, Alpha );
+	Result.CameraYaw = FMathSub::LerpDegree( A.CameraYaw, B.CameraYaw, Alpha );
+	Result.CameraPitch = FMathSub::LerpDegree( A.CameraPitch, B.CameraPitch, Alpha );
 	Result.ZoomDistance = FMath::Lerp( A.ZoomDistance, B.ZoomDistance, Alpha );
 	Result.CameraFovDeg = FMath::Lerp( A.CameraFovDeg, B.CameraFovDeg, Alpha );
+
+	// MJTODO CameraYaw <- 블랜드 아웃 시작할 때 Diff 구해서 빼는 방식으로 수정 필요
 
 	return Result;
 }
@@ -117,8 +119,7 @@ bool APlayerCameraModeManager::SetPlayerCameraPreset( const EPlayerCameraPriorit
 
 void APlayerCameraModeManager::ClearPlayerCameraPreset( const EPlayerCameraPriority Priority )
 {
-	const int32 CameraPresetCount = CameraPresetList.Num();
-	for( int32 CameraPresetIndex = 0; CameraPresetIndex < CameraPresetCount; ++CameraPresetIndex )
+	for( int32 CameraPresetIndex = CameraPresetList.Num() - 1; CameraPresetIndex >= 0; --CameraPresetIndex )
 	{
 		if( CameraPresetList[CameraPresetIndex].Priority == Priority )
 			CameraPresetList.RemoveAt( CameraPresetIndex );
@@ -156,6 +157,8 @@ void APlayerCameraModeManager::UpdateViewTargetInternal( FTViewTarget& OutVT, fl
 	OutVT.POV.Rotation = CameraRotator;
 	OutVT.POV.Location = PlayerCameraResult.CameraLocation + ( CameraBackwardVector * PlayerCameraResult.ZoomDistance ); // MJTODO 충돌처리
 	OutVT.POV.FOV = PlayerCameraResult.CameraFovDeg;
+	OutVT.POV.AspectRatioAxisConstraint = AspectRatio_MaintainYFOV;
+	OutVT.POV.AspectRatio = 1.0f;
 }
 
 void APlayerCameraModeManager::ApplyDeltaRotation( const FRotator& InRotationInput )
@@ -198,45 +201,37 @@ void APlayerCameraModeManager::UpdateCamera_CreateCameraMode( const FPlayerCamer
 		return;
 
 	const FPlayerCameraPresetInfo& LastPlayerCameraPresetInfo = CameraPresetList.Last();
-	if( CameraInstanceList.Num() == 0 || CameraInstanceList.Last().PlayerCameraMode->IsSameCamera( LastPlayerCameraPresetInfo ) == false )
+	if( CameraInstanceList.Num() != 0 && CameraInstanceList.Last().PlayerCameraMode->IsSameCamera( LastPlayerCameraPresetInfo ) )
+		return;
+
+	FPlayerCameraInstance PlayerCameraInstance;
+
+	switch( LastPlayerCameraPresetInfo.PlayerCameraPreset->GetPlayerCameraModeType() )
 	{
-		FPlayerCameraInstance PlayerCameraInstance;
-
-		switch( LastPlayerCameraPresetInfo.PlayerCameraPreset->GetPlayerCameraModeType() )
+		case EPlayerCameraModeType::TPS:
 		{
-			case EPlayerCameraModeType::TPS:
-			{
-				PlayerCameraInstance.PlayerCameraMode = GetWorld()->SpawnActor<APlayerCameraTPSMode>( APlayerCameraTPSMode::StaticClass() );
-			}
-			break;
-			case EPlayerCameraModeType::LockOn:
-			{
-				PlayerCameraInstance.PlayerCameraMode = GetWorld()->SpawnActor<APlayerCameraLockOnMode>( APlayerCameraLockOnMode::StaticClass() );
-			}
-			break;
-			default:
-			{
-				MJ_ASSERT_DEV( "김민진", false, "사용하면 안 되는 타입입니다. 코드를 확인해주세요." );
-				return;
-			}
-			break;
+			PlayerCameraInstance.PlayerCameraMode = GetWorld()->SpawnActor<APlayerCameraTPSMode>( APlayerCameraTPSMode::StaticClass() );
 		}
-
-		PlayerCameraInstance.PlayerCameraMode->Initialize( LastPlayerCameraPresetInfo, PlayerCameraResult );
-
-		CameraInstanceList.Add( MoveTemp( PlayerCameraInstance ) );
+		break;
+		case EPlayerCameraModeType::LockOn:
+		{
+			PlayerCameraInstance.PlayerCameraMode = GetWorld()->SpawnActor<APlayerCameraLockOnMode>( APlayerCameraLockOnMode::StaticClass() );
+		}
+		break;
+		default:
+		{
+			MJ_ASSERT_DEV( "김민진", false, "사용하면 안 되는 타입입니다. 코드를 확인해주세요." );
+			return;
+		}
+		break;
 	}
 
-	for( int32 Index = CameraInstanceList.Num() - 1; Index >= 0; --Index )
-	{
-		if( FMath::IsNearlyEqual( CameraInstanceList[Index].GetApplyRatio(), 1.0f ) )
-		{
-			if( Index > 0 )
-				CameraInstanceList.RemoveAt( 0, Index );
+	PlayerCameraInstance.PlayerCameraMode->Initialize( LastPlayerCameraPresetInfo, PlayerCameraResult );
 
-			break;
-		}
-	}
+	if( CameraInstanceList.IsEmpty() == false )
+		CameraInstanceList.Last().PlayerCameraMode->SetBlendOut();
+
+	CameraInstanceList.Add( MoveTemp( PlayerCameraInstance ) );
 }
 
 void APlayerCameraModeManager::UpdateCamera_UpdateCameraMode( const FPlayerCameraUpdateDesc& PlayerCameraUpdateDesc )
@@ -251,13 +246,25 @@ void APlayerCameraModeManager::UpdateCamera_UpdateCameraMode( const FPlayerCamer
 		CameraInstanceList[CameraInstanceIndex].PlayerCameraMode->UpdateCameraMode( PlayerCameraUpdateDesc );
 	}
 
+	for( int32 Index = CameraInstanceList.Num() - 1; Index > 0; --Index )
+	{
+		if( FMath::IsNearlyEqual( CameraInstanceList[Index].GetApplyRatio(), 1.0f ) )
+		{
+			for( int32 RemoveIndex = Index - 1; RemoveIndex >= 0; --RemoveIndex )
+				CameraInstanceList[RemoveIndex].PlayerCameraMode->Destroy();
+
+			CameraInstanceList.RemoveAt( 0, Index );
+			break;
+		}
+	}
+
 	CameraInstanceList.RemoveAll( []( const FPlayerCameraInstance& PlayerCameraInstance )
 		{
-			if( PlayerCameraInstance.IsBlendOutComplete() )
+			if( PlayerCameraInstance.IsBlendOutComplete() || PlayerCameraInstance.PlayerCameraMode->IsValidCamera() == false )
+			{
+				PlayerCameraInstance.PlayerCameraMode->Destroy();
 				return true;
-
-			if( PlayerCameraInstance.PlayerCameraMode->IsValid() == false )
-				return true;
+			}
 
 			return false;
 		} );
@@ -286,6 +293,20 @@ void APlayerCameraModeManager::UpdateCamera_BlendCameraResult( const FPlayerCame
 	}
 }
 
+float APlayerCameraModeManager::GetAspectRatio()
+{
+	if( GEngine == nullptr || GEngine->GameViewport == nullptr )
+		return 1.0f;
+
+	FVector2D ViewportSize;
+	GEngine->GameViewport->GetViewportSize( ViewportSize );
+
+	if( ViewportSize.Y <= 0.0f )
+		return 1.0f;
+
+	return  ViewportSize.X / ViewportSize.Y;
+}
+
 #ifdef MJ_EDITOR
 void APlayerCameraModeManager::ToggleDebugDrawSwitch()
 {
@@ -298,48 +319,43 @@ void APlayerCameraModeManager::DebugDraw_PlayerCameraManager()
 		return;
 
 	// Draw Element
+	static bool IsFreeCam = false;
+	if( IsFreeCam )
 	{
-		constexpr float AspectRatio = 16.0f / 9.0f;
+		float AspectRatio = GetAspectRatio();
+
 		const UWorld* World = GetWorld();
 
-		const FRotator CameraRotation( PlayerCameraResult.CameraPitch, PlayerCameraResult.CameraYaw, 0.0f );
-		const FVector CameraBackwardVector = -CameraRotation.Vector();
-
-		const FVector CameraLocation = PlayerCameraResult.CameraLocation + ( CameraBackwardVector * PlayerCameraResult.ZoomDistance );
-
-		DrawDebugLine( World, PlayerCameraResult.PivotLocation, CameraLocation, FColor::Yellow, false, -1.0f, 0, 2.0f );
-
-		DrawDebugLine( World, PlayerCameraResult.CameraLocation, CameraLocation, FColor::Orange, false, -1.0f, 0, 1.0f );
-
-		DrawDebugPoint( World, PlayerCameraResult.PivotLocation, 12.0f, FColor::Red, false, -1.0f );
-		DrawDebugPoint( World, PlayerCameraResult.CameraLocation, 12.0f, FColor::Green, false, -1.0f );
-
-		const float HalfHFOVRad = FMath::DegreesToRadians( PlayerCameraResult.CameraFovDeg * 0.5f );
-
-		const float HalfWidth = PlayerCameraResult.ZoomDistance * FMath::Tan( HalfHFOVRad );
-		const float HalfHeight = HalfWidth / AspectRatio;
-
-		const FMatrix CamMatrix = FRotationMatrix( CameraRotation );
+		const FMatrix CamMatrix = FRotationMatrix( FRotator( PlayerCameraResult.CameraPitch, PlayerCameraResult.CameraYaw, 0.0f ) );
 		const FVector Forward = CamMatrix.GetScaledAxis( EAxis::X );
 		const FVector Right = CamMatrix.GetScaledAxis( EAxis::Y );
 		const FVector Up = CamMatrix.GetScaledAxis( EAxis::Z );
 
-		const FVector PlaneCenter = PlayerCameraResult.CameraLocation + ( Forward * PlayerCameraResult.ZoomDistance );
+		const FVector LookAtLocation = PlayerCameraResult.CameraLocation;
+		const FVector CameraLocation = LookAtLocation + ( Forward * -PlayerCameraResult.ZoomDistance );
 
-		const FVector TopLeft = PlaneCenter - ( Right * HalfWidth ) + ( Up * HalfHeight );
-		const FVector TopRight = PlaneCenter + ( Right * HalfWidth ) + ( Up * HalfHeight );
-		const FVector BottomLeft = PlaneCenter - ( Right * HalfWidth ) - ( Up * HalfHeight );
-		const FVector BottomRight = PlaneCenter + ( Right * HalfWidth ) - ( Up * HalfHeight );
+		DrawDebugLine( World, PlayerCameraResult.PivotLocation, CameraLocation, FColor::Yellow, false, -1.0f, 0, 2.0f );
+		DrawDebugLine( World, PlayerCameraResult.CameraLocation, CameraLocation, FColor::Orange, false, -1.0f, 0, 1.0f );
+
+		const float HalfHFOVRad = FMath::DegreesToRadians( PlayerCameraResult.CameraFovDeg * 0.5f );
+
+		const float HalfHeight = PlayerCameraResult.ZoomDistance * FMath::Tan( HalfHFOVRad );
+		const float HalfWidth = HalfHeight * AspectRatio;
+
+		const FVector TopLeft = LookAtLocation - ( Right * HalfWidth ) + ( Up * HalfHeight );
+		const FVector TopRight = LookAtLocation + ( Right * HalfWidth ) + ( Up * HalfHeight );
+		const FVector BottomLeft = LookAtLocation - ( Right * HalfWidth ) - ( Up * HalfHeight );
+		const FVector BottomRight = LookAtLocation + ( Right * HalfWidth ) - ( Up * HalfHeight );
 
 		DrawDebugLine( World, TopLeft, TopRight, FColor::Cyan, false, -1.0f, 0, 1.5f );
 		DrawDebugLine( World, TopRight, BottomRight, FColor::Cyan, false, -1.0f, 0, 1.5f );
 		DrawDebugLine( World, BottomRight, BottomLeft, FColor::Cyan, false, -1.0f, 0, 1.5f );
 		DrawDebugLine( World, BottomLeft, TopLeft, FColor::Cyan, false, -1.0f, 0, 1.5f );
 
-		DrawDebugLine( World, PlayerCameraResult.CameraLocation, TopLeft, FColor::Cyan, false, -1.0f, 0, 1.0f );
-		DrawDebugLine( World, PlayerCameraResult.CameraLocation, TopRight, FColor::Cyan, false, -1.0f, 0, 1.0f );
-		DrawDebugLine( World, PlayerCameraResult.CameraLocation, BottomLeft, FColor::Cyan, false, -1.0f, 0, 1.0f );
-		DrawDebugLine( World, PlayerCameraResult.CameraLocation, BottomRight, FColor::Cyan, false, -1.0f, 0, 1.0f );
+		DrawDebugLine( World, LookAtLocation, TopLeft, FColor::Cyan, false, -1.0f, 0, 1.0f );
+		DrawDebugLine( World, LookAtLocation, TopRight, FColor::Cyan, false, -1.0f, 0, 1.0f );
+		DrawDebugLine( World, LookAtLocation, BottomLeft, FColor::Cyan, false, -1.0f, 0, 1.0f );
+		DrawDebugLine( World, LookAtLocation, BottomRight, FColor::Cyan, false, -1.0f, 0, 1.0f );
 	}
 
 	// Draw Text
@@ -382,6 +398,11 @@ void APlayerCameraModeManager::DebugDraw_PlayerCameraManager()
 		);
 
 		GEngine->AddOnScreenDebugMessage( KeyIndex--, 0.0f, FColor::White, DebugString );
+	}
+
+	for( int32 i = 0; i < CameraInstanceList.Num(); ++i )
+	{
+		CameraInstanceList[i].PlayerCameraMode->DebugDraw_PlayerCameraMode();
 	}
 }
 #endif

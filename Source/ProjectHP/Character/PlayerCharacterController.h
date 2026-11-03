@@ -25,7 +25,4 @@ public:
 
 private:
 	void ApplyCharacterDefaultCameraPreset( APawn* InPawn );
-
-	//MJTEST MJTODO
-	void OnSpawnAndBlendCamera();
 };

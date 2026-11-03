@@ -50,6 +50,10 @@ class PROJECTHP_API APlayerCameraModeManager : public APlayerCameraManager
 public:
 	APlayerCameraModeManager();
 
+public:
+	static float GetAspectRatio();
+
+public:
 	virtual void BeginPlay() override;
 
 	bool SetPlayerCameraPreset( const EPlayerCameraPriority Priority, const TObjectPtr<UPlayerCameraPreset>& PlayerCameraPreset, const FObjectKey PivotActorKey = FObjectKey(), const TSortedArray<FObjectKey> TargetActorKeyList = TSortedArray<FObjectKey>() );
